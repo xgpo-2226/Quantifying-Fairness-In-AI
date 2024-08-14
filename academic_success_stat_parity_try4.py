@@ -75,12 +75,6 @@ def statistical_parity(predictions, protected_attribute, alpha=0.5):
     group_0_median = torch.median(group_0)
     group_1_median = torch.median(group_1)
     
-    # Calculate the absolute difference in medians
-    # parity = torch.abs(group_0_median - group_1_median)
-    
-    # print(f"\nGROP MEDIANS:{group_0_median}, {group_1_median}")
-    # print(f"\nGROP MEANS:{group_0.mean()}, {group_1.mean()}")
-    # print(f"\nSTAT PARITY FUNCTION VALUE:{parity}")
     return alpha * parity.item() # Return the statistical parity value
 
 # Main code block
@@ -130,15 +124,13 @@ if __name__ == "__main__":
     print("Label distribution in training set:")
     print(pd.DataFrame(labels).sum())
 
-    # # Balance the dataset using SMOTE
+    # # Balance the dataset using ADASYN
     # smote = SMOTE()
     # features, labels = smote.fit_resample(features, labels)
     adasyn = ADASYN()
     features, labels = adasyn.fit_resample(features, labels)
 
     # Resample protected attributes accordingly
-    # protected_attr_resampled = np.repeat(protected_attr, labels.shape[0] // len(protected_attr), axis=0)
-    # protected_attr_resampled = protected_attr
     protected_attr_resampled = resample(protected_attr, n_samples=features.shape[0], random_state=42)
 
     # Normalize features
@@ -193,13 +185,11 @@ if __name__ == "__main__":
 
     label_counts = pd.DataFrame(labels, columns=['Dropout', 'Enrolled', 'Graduate']).sum()
     class_counts = label_counts.values
-    # print(f"Class counts:\n{sum(class_counts)}")
     class_weights = 1.0 / class_counts
     # class_weights_i = 3 / sum(class_counts) 
     # class_weights = [class_weights_i,class_weights_i,class_weights_i]
     weights_tensor = torch.tensor(class_weights, dtype=torch.float32).to(device)
 
-    # loss_function = nn.CrossEntropyLoss()
     loss_function = nn.CrossEntropyLoss(weight=weights_tensor)
     # loss_function = nn.BCEWithLogitsLoss()  # Use BCEWithLogitsLoss for multi-label classification
 
@@ -248,13 +238,6 @@ if __name__ == "__main__":
             elapsed_time = time.time() - start_epoch_time
             training_times.append(elapsed_time)
             print(f"\nEpoch time: {elapsed_time:.2f} seconds")
-    
-            # # Compute statistical parity
-            # all_predictions_tensor = torch.tensor(all_predictions, dtype=torch.float32).to(device)
-            # all_protected_attrs_tensor = torch.tensor(all_protected_attrs, dtype=torch.float32).to(device)
-            # stat_parity = statistical_parity(all_predictions_tensor, all_protected_attrs_tensor)
-            # stat_parity = stat_parity.detach().cpu().resolve_conj().resolve_neg().numpy()
-            # print(f"Statistical Parity: {stat_parity}")
             
             # Update the learning rate
             scheduler.step(loss)
@@ -369,10 +352,6 @@ if __name__ == "__main__":
         
         accuracy = 100 * correct / total # (TP+TN)/(TP+TN+FP+FN)
         print(f'\n\nAccuracy of the network on the test set: {accuracy:.3f}%')
-    
-        # # Calculate fairness metrics (statistical parity)
-        # statistical_parity_positive = fairness_correct / protected_attribute_positive
-        # statistical_parity_negative = (correct - fairness_correct) / protected_attribute_negative
         
         # Convert lists to numpy arrays
         all_predictions_np = np.vstack(all_predictions)
@@ -385,8 +364,7 @@ if __name__ == "__main__":
         
         # parity = statistical_parity(torch.from_numpy(all_predictions_np), torch.from_numpy(all_protected_attrs_np))
         parity = statistical_parity(model(torch.from_numpy(all_features_np)), torch.from_numpy(all_protected_attrs_np))
-        print(f"\nStatistical Parity: {parity:.5f}") 
-        # print(f"\nStatistical Parity2: {LastPar}") ##!
+        print(f"\nStatistical Parity: {parity:.5f}")
         
         # equalised_odds_value = EQO.equalised_odds(torch.from_numpy(all_predictions_np), torch.from_numpy(all_labels_np), torch.from_numpy(all_protected_attrs_np))
         equalised_odds_value = EQO.equalised_odds(model(torch.from_numpy(all_features_np)), torch.from_numpy(all_labels_np), torch.from_numpy(all_protected_attrs_np))
@@ -575,11 +553,6 @@ if __name__ == "__main__":
         
         chi_square_male = chisquare(f_obs=actual_male_counts, f_exp=predicted_male_counts)
         chi_square_female = chisquare(f_obs=actual_female_counts, f_exp=predicted_female_counts)
-        # chi_square_all = chisquare(f_obs=predicted_female_counts, f_exp=predicted_male_counts)
-        
-        # obs_all = np.array([[16, 18, 16, 14, 12, 12], [32, 24, 16, 28, 20, 24]]).T
-        # exp_all = np.array([[16, 18, 16, 14, 12, 12], [32, 24, 16, 28, 20, 24]]).T
-        # chisquare(f_obs=obs_all) groups vs labels
         
         print("\nMeasuring ACCURACY with CHI-Square")
         print(f"Chi-Square Test for Male Group: {chi_square_male}") # statistic = the chi squared distance
@@ -597,17 +570,6 @@ if __name__ == "__main__":
         # Output the results
         print(f"Chi-Sqaure Statistic Across All Groups: {chi2_stat:.5f}")
         print(f"P-Value Across All Groups: {p_value:.5f}")
-
-        
-        # Compute Wasserstein distance (similarity metric between two probability distributions)
-        # wasserstein_dist = wasserstein_distance(actual_graduate_male, predicted_graduate_male)
-        # wasserstein_dist = wasserstein_distance(actual_graduate_male_1hot, predicted_graduate_male_1hot)
-        # print(f'\nWasserstein Distance: {wasserstein_dist:.3f}')
-        
-        # # Save predictions to Excel
-        # df_predictions = pd.DataFrame(all_predictions_np, columns=['Dropout', 'Enrolled', 'Graduate'])
-        # df_predictions.to_excel('predictions.xlsx', index=False)
-        # print('Predictions saved to predictions.xlsx')
     
     except Exception as e:
         logging.error(f'Error during testing: {e}')
