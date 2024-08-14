@@ -7,7 +7,7 @@ from torch.nn import functional as F
 from torch.utils.data import DataLoader, TensorDataset, Subset
 from ucimlrepo import fetch_ucirepo  # Module for fetching datasets from UCI ML repository
 from typing import Callable
-import logging  # Standard Python logging module while program runs
+# import logging  # Standard Python logging module while program runs
 import time
 import pandas as pd
 import numpy as np
@@ -20,7 +20,7 @@ from sklearn.metrics import accuracy_score
 from sklearn.metrics import classification_report, hamming_loss, auc # in-built AI analysis metrics
 from sklearn.preprocessing import MultiLabelBinarizer, label_binarize # to binarise the labels/output of the model
 # from sklearn.metrics import plot_precision_recall_curve
-from scipy.stats import chisquare
+from scipy.stats import chisquare, chi2_contingency
 from sklearn.utils import resample # to resample protected attributes appropriately
 import matplotlib.pyplot as plt  # for graph plotting
 from scipy.stats import wasserstein_distance  # to calculate Wasserstein distance (measure difference between distributions)
@@ -397,18 +397,36 @@ if __name__ == "__main__":
         plt.legend()
         plt.show()
         
-        # Get indices where the elements in all_protected_attrs are equal to 1
+        # Get indices for all unique elements in all_protected_attrs
+        demographic_indices = []
+        for attr in np.unique(all_protected_attrs_np, axis=0):
+            demo_indices_i = np.where(all_protected_attrs_np == attr)[0]
+            demographic_indices.append(demo_indices_i)
         
-        indices_male = np.where(all_protected_attrs_np == 1)[0]
-        # Get indices where the elements in all_protected_attrs are equal to 0
-        indices_female = np.where(all_protected_attrs_np == 0)[0]
+        # Index all_labels_np using the indices to get the corresponding labels for each demographic group
+        actual_graduate_demos = []
+        predicted_graduate_demos = []
         
-        # Index into all_labels_np using the indices to get the corresponding rows
-        actual_graduate_male = all_labels_np[indices_male, 2]
-        predicted_graduate_male = all_predictions_np[indices_male, 2]
-        actual_graduate_female = all_labels_np[indices_female, 2]
-        predicted_graduate_female = all_predictions_np[indices_female, 2]
+        for indices in demographic_indices:
+            
+            actual_grad_i = all_labels_np[indices]
+            actual_graduate_demos.append(actual_grad_i)
+            
+            predicted_grad_i = all_predictions_np[indices]
+            predicted_graduate_demos.append(predicted_grad_i)
         
+        # finds the index of the column in each row of the '1' value (to get '1-hot' values)
+        actual_group_bins = []
+        for i in actual_graduate_demos:
+            bin_i = np.argmax(i, axis=1)
+            actual_group_bins.append(bin_i)
+            
+        predicted_group_bins = []
+        for i in predicted_graduate_demos:
+            bin_i = np.argmax(i, axis=1)
+            predicted_group_bins.append(bin_i)
+            
+            
         
         all_labels_np = all_labels_np.astype(int)
         all_predictions_np = all_predictions_np.astype(int)
@@ -502,29 +520,45 @@ if __name__ == "__main__":
         plt.title('Precision-Recall Curve | INTERSECTIONAL FAIRNESS')
         plt.show()
         
-        # Ensure arrays are of integer type
-        actual_graduate_male = actual_graduate_male.astype(int)
-        predicted_graduate_male = predicted_graduate_male.astype(int)
-        actual_graduate_female = actual_graduate_female.astype(int)
-        predicted_graduate_female = predicted_graduate_female.astype(int)
+        actual_group_counts = []
+        for i in actual_group_bins:
+            counts_i = np.bincount(i)
+            actual_group_counts.append(counts_i)
+            
+            
+        predicted_group_counts = []
+        for i in predicted_group_bins:
+            counts_i = np.bincount(i)
+            predicted_group_counts.append(counts_i)
+            
+            
+        chi_accuracies = []
+        for actual, pred in zip(actual_group_counts, predicted_group_counts):
+            chi_i = chisquare(f_obs=actual, f_exp=pred)
+            chi_accuracies.append(chi_i)
+            
+        temp = zip(actual_group_counts, predicted_group_counts)
+        
+        print("\n\nMeasuring ACCURACY with CHI-Square")
+        for i in range(len(chi_accuracies)):
+            print(f"\nChi-Square Test for Group {i + 1}: {chi_accuracies[i]}") 
+            
+            # statistic = the chi squared distance
+            # pvalue < 0.05 = statistically sig difference
+            
+            
+        print("\n\nMeasuring FAIRNESS with CHI-Square")
+        
+        # Create a contingency table
+        contingency_table = np.array([predicted_group_counts]).T
+        
+        # Perform the Chi-Square test for homogeneity
+        chi2_stat, p_value, dof, expected = chi2_contingency(contingency_table)
+        
+        # Output the results
+        print(f"Chi-Sqaure Statistic Across All Groups: {chi2_stat:.5f}")
+        print(f"P-Value Across All Groups: {p_value:.5f}")
 
-        actual_male_counts = np.bincount(actual_graduate_male)
-        predicted_male_counts = np.bincount(predicted_graduate_male)
-        
-        actual_female_counts = np.bincount(actual_graduate_female)
-        predicted_female_counts = np.bincount(predicted_graduate_female)
-        
-        chi_square_male = chisquare(f_obs=actual_male_counts, f_exp=predicted_male_counts)
-        chi_square_female = chisquare(f_obs=actual_female_counts, f_exp=predicted_female_counts)
-        
-        print(f"\nChi-Square Test for Male Group: {chi_square_male}") # statistic = the chi squared distance
-        print(f"Chi-Square Test for Female Group: {chi_square_female}") # pvalue < 0.05 = statistically sig difference
-
-        
-        # Compute Wasserstein distance (similarity metric between two probability distributions)
-        # wasserstein_dist = wasserstein_distance(actual_graduate_male, predicted_graduate_male)
-        wasserstein_dist = wasserstein_distance(predicted_graduate_female, predicted_graduate_male)
-        print(f'\nWasserstein Distance: {wasserstein_dist:.3f}')
     
     except Exception as e:
         logging.error(f'Error during testing: {e}')

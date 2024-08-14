@@ -394,7 +394,7 @@ if __name__ == "__main__":
         # indices_female = np.where(all_protected_attrs_np[0] == 0)[0]
         
         # Get indices where the elements in all_protected_attrs are equal to 1
-        indices_male = np.where(all_protected_attrs_np == 1)[0]
+        indices_male = np.where(all_protected_attrs_np == 1)[0] # to just get the index, not the data type
         # Get indices where the elements in all_protected_attrs are equal to 0
         indices_female = np.where(all_protected_attrs_np == 0)[0]
         
