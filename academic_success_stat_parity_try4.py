@@ -289,20 +289,16 @@ if __name__ == "__main__":
         
         with torch.no_grad(): # Disable gradient calculations for inference
             
-            # LargestPar = 0
-            LastPar = 0 ##!
             for features_batch, labels_batch, protected_attr_batch in test_loader:
                 
                 start_train_batch_time = time.time()
                 
                 features_batch = features_batch.to(device)
-                # print(f"FEATURES BATCH TYPE: {type(features_batch)}") ##!
                 labels_batch = labels_batch.to(device)
                 protected_attr_batch = protected_attr_batch.to(device)
                 
                 
                 logits = model(features_batch)
-                # print(f"\n\nLOGITS: {logits}") ##!
                 predictions = torch.sigmoid(logits) > 0.5  # Sigmoid and threshold for binary predictions
                 pred_probs = F.softmax(logits, dim=1)  # Store softmax probabilities
                 
@@ -312,12 +308,10 @@ if __name__ == "__main__":
                 predictions.scatter_(1, predicted_indices.unsqueeze(1), 1)
          
                 
-                # print(f"\n\PREDICTIONS: {predictions}") ##!
                 # parity = statistical_parity(predictions, protected_attr_batch)
                 parity = statistical_parity(logits, protected_attr_batch) ##!
                 
                 # Convert tensors to numpy arrays for comparison
-                # predictions = torch.sigmoid(logits) > 0.5 ##!
                 predicted_np = predictions.cpu().numpy()
                 labels_np = labels_batch.cpu().numpy()
                 features_np = features_batch.cpu().numpy()
@@ -328,43 +322,12 @@ if __name__ == "__main__":
                     total += 1
                     if np.array_equal(pred, label):
                         correct += 1
-                    # print(f"predicted and label numpy array equal?: {np.array_equal(pred, label)}\n")
-    
-                # all_predictions.extend(predicted_np)
-                # all_labels.extend(labels_np)
-                # all_protected_attrs.extend(protected_attr_batch.cpu().numpy())
                 
                 all_predictions.append(predicted_np)
                 all_labels.append(labels_np)
                 all_protected_attrs.append(protected_attr_batch.cpu().numpy())
                 all_features.append(features_np)
-                all_pred_probs.append(pred_probs_np)  # Store probabilities
-
-
-                # Evaluate fairness
-                # fairness_correct += ((predictions == labels) & (protected_attr_batch == 1)).sum().item()
-                # Check types of labels and predictions
-                # labels_batch = labels_batch.to(torch.float)
-                # print(f"Prediction type: {predictions.size()}")
-                # print(f"Label type: {labels_batch.size()}")
-                
-                # # # Expand protected_attr_batch to match the shape of predictions and labels_batch
-                # # protected_attr_batch = protected_attr_batch.view(-1, 1).expand(-1, 3)  # Shape [128, 3]
-                # # # Reshape protected_attr_batch to be broadcastable
-                # protected_attr_batch = protected_attr_batch.view(-1, 1)  # Shape [128, 1]
-                # print(f"Protected Attribute type: {protected_attr_batch.size()}")
-                # print(f"Features tensor size: {features_tensor.size()}")
-                # print(f"Labels tensor size: {labels_tensor.size()}")
-                # fairness_correct += ((predictions == labels) & (protected_attr_batch == 1)).sum().item()
-                # # fairness_correct += ((predictions ==  labels_batch) & (protected_attr_batch == 1)).sum().item()
-                # # fairness_correct += ((predicted_np == labels_np) & (protected_attr_batch == 1)).sum().item()
-                # protected_attribute_positive += (protected_attr_batch == 1).sum().item()
-                # protected_attribute_negative += (protected_attr_batch == 0).sum().item()
-
-                LastPar = parity
-                # if parity < LargestPar:
-                #     LargestPar = parity
-                #     print(f"Highest Statistical Parity: {parity}") 
+                all_pred_probs.append(pred_probs_np)  # Store probabilities 
                     
                 # Timing the test batch
                 elapsed_time = time.time() - start_train_batch_time
@@ -432,21 +395,12 @@ if __name__ == "__main__":
         dataset = fetch_ucirepo(id=697)  # ID for the new dataset
         df = pd.concat([dataset.data.features, dataset.data.targets], axis=1)
         df = pd.get_dummies(df)
-        # protected_attr = df[['Gender', 'Nacionality', 'Educational special needs']].values
-        # protected_attr_resampled = resample(protected_attr, n_samples=labels.shape[0], random_state=42)
-        # protected_attr_tensor = torch.tensor(protected_attr_resampled, dtype=torch.float32).to(device)
-        # parity_intx = IXP.intersectional_statistical_parity(model(torch.from_numpy(all_features_np)), protected_attr_tensor[test_indices])
-        
-        
         sens_attr = df[['Gender', 'Nacionality', 'Educational special needs']].values # instantiate a new list of sensitive attributes
         sens_attr_resampled = resample(sens_attr, n_samples=labels.shape[0], random_state=42)
         sens_attr_tensor = torch.tensor(sens_attr_resampled, dtype=torch.float32).to(device)
         parity_intx = IXP.intersectional_statistical_parity(model(torch.from_numpy(all_features_np)), sens_attr_tensor[test_indices])
         print(f"\nIntersection Statistical Parity: {parity_intx:.5f}") 
         
-        # all_predictions_np = np.array(all_predictions)
-        # all_labels_np = np.array(all_labels)
-        # all_protected_attrs_np = np.array(all_protected_attrs)
         f1 = f1_score(all_labels_np, all_predictions_np, average='macro')
         print(f'\nF1-Score: {f1:.3f}')
         
@@ -466,12 +420,6 @@ if __name__ == "__main__":
         # Get indices where the elements in all_protected_attrs are equal to 0
         indices_female = np.where(all_protected_attrs_np == 0)[0]
         
-        # # Index into all_labels_np using the indices to get the corresponding last column
-        # actual_graduate_male = all_labels_np[indices_male, 2]
-        # predicted_graduate_male = all_predictions_np[indices_male, 2]
-        # actual_graduate_female = all_labels_np[indices_female, 2]
-        # predicted_graduate_female = all_predictions_np[indices_female, 2]
-        
         # Index into all_labels_np using the indices to get the corresponding rows
         actual_graduate_male = all_labels_np[indices_male]
         predicted_graduate_male = all_predictions_np[indices_male]
@@ -479,33 +427,11 @@ if __name__ == "__main__":
         predicted_graduate_female = all_predictions_np[indices_female]
         
         # finds the index of the column in each row of the '1' value
-        actual_graduate_male_1hot = np.argmax(actual_graduate_male, axis=1)
-        predicted_graduate_male_1hot = np.argmax(predicted_graduate_male, axis=1)
-        actual_graduate_female_1hot = np.argmax(actual_graduate_female, axis=1)
-        predicted_graduate_female_1hot = np.argmax(predicted_graduate_female, axis=1) 
+        actual_graduate_male_bin = np.argmax(actual_graduate_male, axis=1)
+        predicted_graduate_male_bin = np.argmax(predicted_graduate_male, axis=1)
+        actual_graduate_female_bin = np.argmax(actual_graduate_female, axis=1)
+        predicted_graduate_female_bin = np.argmax(predicted_graduate_female, axis=1) 
         
-        # # plt.figure(figsize=(10, 6))        
-        # # plt.scatter(range(len(actual_graduate_male)), actual_graduate_male, color='blue', label='Actual Male')
-        # # plt.scatter(range(len(predicted_graduate_male)), predicted_graduate_male, color='red', label='Predicted Male', marker='x')
-        # # plt.scatter(range(len(actual_graduate_female)), actual_graduate_female, color='green', label='Actual Female')
-        # # plt.scatter(range(len(predicted_graduate_female)), predicted_graduate_female, color='orange', label='Predicted Female', marker='x')
-        # # plt.xlabel('Samples')
-        # # plt.ylabel('Graduate')
-        # # plt.legend()
-        # # plt.show()
-        
-        # # # Compute residuals
-        # # residuals_male = actual_graduate_male - predicted_graduate_male
-        # # residuals_female = actual_graduate_female - predicted_graduate_female
-        
-        # # # Plot residuals
-        # # plt.figure(figsize=(10, 6))
-        # # plt.hist(residuals_male, bins=20, alpha=0.5, label='Residuals Male', color='red')
-        # # plt.hist(residuals_female, bins=20, alpha=0.5, label='Residuals Female', color='yellow')
-        # # plt.xlabel('Residuals')
-        # # plt.ylabel('Frequency')
-        # # plt.legend()
-        # # plt.show()
         
         # Epoch Runtime/Performance Time Plot
         plt.figure(figsize=(10, 6))
@@ -517,102 +443,17 @@ if __name__ == "__main__":
         plt.legend()
         plt.show()
     
-        # # Distributions of Predictions vs. Correct Labels
-        # plt.figure(figsize=(10, 6))
-        # plt.hist([predicted_graduate_male, actual_graduate_male], bins=20, alpha=0.5, label=['Predicted Male', 'Actual Male'], color=['red', 'blue'])
-        # plt.hist([predicted_graduate_female, actual_graduate_female], bins=20, alpha=0.5, label=['Predicted Female', 'Actual Female'], color=['orange', 'green'])
-        # plt.xlabel('Graduate')
-        # plt.ylabel('Frequency')
-        # plt.title('Distributions of Predictions vs. Correct Labels')
-        # plt.legend()
-        # plt.show()
-    
-        # # Predictions and Confidence on One Graph?? with p-values?
-        # confidences = np.max(all_predictions_np, axis=1)
-        # plt.figure(figsize=(10, 6))
-        # plt.scatter(range(len(confidences)), confidences, color='blue', label='Confidence in Predictions')
-        # plt.xlabel('Samples')
-        # plt.ylabel('Confidence')
-        # plt.title('Predictions and Confidence')
-        # plt.legend()
-        # plt.show()
-    
-        # # Model Predictions with Linear Regression/Curve
-        # from sklearn.linear_model import LinearRegression
-        # lr = LinearRegression()
-        # X = all_labels_np
-        # y = all_predictions_np
-        # lr.fit(X, y)
-        # predicted_regression = lr.predict(X)
-        # # Calculate the residuals
-        # residuals = y - X
-        
-        # # Calculate the standard error of the regression
-        # n = len(X)
-        # degrees_of_freedom = n - 2
-        # residual_std_error = np.sqrt(np.sum(residuals**2) / degrees_of_freedom)
-        
-        # # Calculate the mean and standard error for each prediction
-        # mean_X = np.mean(X)
-        # t_value = 1.96  # 95% confidence interval, use appropriate t-value for your confidence level
-        
-        # # Predicted values and their standard errors
-        # predictions_std_error = residual_std_error * np.sqrt(1/n + (X - mean_X)**2 / np.sum((X - mean_X)**2))
-        
-        # # Calculate the upper and lower bounds of the confidence intervals
-        # confidence_interval_upper = y + t_value * predictions_std_error
-        # confidence_interval_lower = y - t_value * predictions_std_error
-        
-        # # Plotting
-        # plt.figure(figsize=(10, 6))
-        # plt.scatter(X, y, color='blue', label='Observed')
-        # plt.plot(X, y, color='red', label='Predicted')
-        # plt.plot(X, confidence_interval_upper, color='orange', linestyle='--', label='Upper Bound')
-        # plt.plot(X, confidence_interval_lower, color='green', linestyle='--', label='Lower Bound')
-        # plt.fill_between(X.flatten(), confidence_interval_lower.flatten(), confidence_interval_upper.flatten(), color='grey', alpha=0.2)
-        # plt.xlabel('Actual Labels')
-        # plt.ylabel('Predicted Labels')
-        # plt.title('Predicted Values with Confidence Intervals')
-        # plt.legend()
-        # plt.grid(True)
-        # plt.show()
-    
-        # # Statistical Analysis
-        # std_dev = np.std(all_predictions_np, axis=0)
-        # variance = np.var(all_predictions_np, axis=0)
-        # plt.figure(figsize=(10, 6))
-        # plt.bar(range(len(std_dev)), std_dev, alpha=0.5, label='Standard Deviation')
-        # plt.bar(range(len(variance)), variance, alpha=0.5, label='Variance')
-        # plt.xlabel('Labels')
-        # plt.ylabel('Value')
-        # plt.title('Statistical Analysis of Predictions')
-        # plt.legend()
-        # plt.show()
-        
-        # protected_attr_batch = protected_attr_batch.view(-1, 1)  # Shape [128, 1]
         
         all_labels_np = all_labels_np.astype(int)
-        all_predictions_np = all_predictions_np.astype(int)
-        
-        # print(f"All labels type: {all_labels_np}")
-        # print(f"\n\nAll predictions size: {all_predictions_np}")
-        
-        # # Generate the confusion matrix
-        # conf_matrix = confusion_matrix(all_labels_np, all_predictions_np)
-        # print("Confusion Matrix:")
-        # print(conf_matrix)
+        all_predictions_np = all_predictions_np.astype(int) #!
         
         
         # Convert numpy arrays to lists of lists
         all_labels_list = [list(label) for label in all_labels_np]
         all_predictions_list = [list(prediction) for prediction in all_predictions_np]
         
-        mlb = MultiLabelBinarizer()
-        # all_labels_bin = mlb.fit_transform(all_labels)
-        # all_predictions_bin = mlb.transform(all_predictions)
+        mlb = MultiLabelBinarizer() #!
         
-        # all_labels_bin = mlb.fit_transform(all_labels_np)
-        # all_predictions_bin = mlb.transform(all_predictions_np)
         all_labels_bin = np.argmax(all_labels_np, axis=1)
         all_predictions_bin = np.argmax(all_predictions_np, axis=1)
         
@@ -624,39 +465,6 @@ if __name__ == "__main__":
         # Compute Hamming loss (proportion of incorrectly classified labels, 0 - 1 possible value range)
         print("\n\nHamming Loss:", hamming_loss(all_labels_bin, all_predictions_bin))
         
-        # # Compute confusion matrix for each label
-        # for i, label in enumerate(mlb.classes_):
-        #     cm = confusion_matrix(all_labels_bin[:, i], all_predictions_bin[:, i])
-        #     print(f"Confusion Matrix for label {label}:\n{cm}")
-        
-        # # ROC Curve and ROC AUC Score
-        # fpr, tpr, thresholds = roc_curve(all_labels_np, all_pred_probs_np)
-        # roc_auc = roc_auc_score(all_labels_np, all_pred_probs_np)
-        # print("ROC AUC Score:", roc_auc)
-        
-        # Compute ROC curve and AUC for each label
-                # Initialize dictionaries for ROC curve and AUC
-        # fpr = {}
-        # tpr = {}
-        # roc_auc = {}
-        
-        # # Compute ROC curve and AUC for each label
-        # for i in range(len(mlb.classes_)):
-        #     print(f"\n mlb.classes_ length: {range(len(mlb.classes_))}")
-        #     fpr[i], tpr[i], _ = roc_curve(all_labels_bin[:, i], all_pred_probs[:, i])
-        #     roc_auc[i] = auc(fpr[i], tpr[i])
-        
-        #     plt.figure()
-        #     plt.plot(fpr[i], tpr[i], color='blue', lw=2, label=f'ROC curve (area = {roc_auc[i]:0.2f})')
-        #     plt.plot([0, 1], [0, 1], color='gray', lw=2, linestyle='--')
-        #     plt.xlim([0.0, 1.0])
-        #     plt.ylim([0.0, 1.05])
-        #     plt.xlabel('False Positive Rate')
-        #     plt.ylabel('True Positive Rate')
-        #     plt.title(f'Receiver Operating Characteristic (ROC) for label {mlb.classes_[i]}')
-        #     plt.legend(loc="lower right")
-        #     plt.show()
-    
     
         # Convert one-hot encoded labels to class labels
         all_labels_class = np.argmax(all_labels_np, axis=1)
@@ -699,34 +507,10 @@ if __name__ == "__main__":
             print(f"\nThe False Positive Rate for the label '{labels_str[i]}' is: {fpr[i]}")
             print(f"The True Positive Rate for the label '{labels_str[i]}' is: {tpr[i]}")
             
-        # # Compute ROC curve and AUC for each label
-        # roc_auc = []
-        # for i in range(num_classes):
-        #     roc_auc = auc(fpr[i], tpr[i])
-        # # a plot in which the x axis = FPR ; y axis = TPR; graphing particular operating pts, e.g., score threshold
-        
-        # # Print FPR for each class
-        # for i in range(num_classes):
-        #     print(f"FPR for class {i}: {fpr[i]}")
-        #     print(f"TPR for class {i}: {tpr[i]}")
-        
-        #     plt.figure()
-        #     plt.plot(fpr[i], tpr[i], color='blue', lw=2, label='ROC curve (area = %0.2f)' % roc_auc[i])
-        #     plt.plot([0, 1], [0, 1], color='gray', lw=2, linestyle='--')
-        #     plt.xlim([0.0, 1.0])
-        #     plt.ylim([0.0, 1.05])
-        #     plt.xlabel('False Positive Rate')
-        #     plt.ylabel('True Positive Rate')
-        #     plt.title('Receiver Operating Characteristic (ROC)')
-        #     plt.legend(loc="lower right")
-        #     plt.show()
-            
         
         # Binarize the labels for one-vs-rest classification
         y_test_binarized = label_binarize(all_labels_np, classes=[0, 1, 2])
         
-        
-        ##!
         
         n_classes = all_labels_np.shape[1]
 
@@ -755,27 +539,14 @@ if __name__ == "__main__":
         plt.ylim([0.0, 1.05])
         plt.xlabel('False Positive Rate')
         plt.ylabel('True Positive Rate')
-        plt.title('Receiver Operating Characteristic (ROC): STATISTICAL PARITY FAIRNESS')
+        plt.title('Receiver Operating Characteristic (ROC):\n STATISTICAL PARITY FAIRNESS')
         plt.legend(loc="lower right")
         plt.show()
-        
-        ##!
+
         
         # Compute the ROC AUC score using "macro" or "micro" averaging
         roc_auc_macro = roc_auc_score(y_test_binarized, all_predictions_np, average='macro')
         roc_auc_micro = roc_auc_score(y_test_binarized, all_predictions_np, average='micro')
-        
-        for i in range(len(fpr)):
-            plt.figure()
-            plt.plot(fpr[i], tpr[i], color='blue', lw=2, label='ROC curve (area = %0.2f)' % roc_auc_macro)
-            # plt.plot([0, 1], [0, 1], color='gray', lw=2, linestyle='--')
-            # plt.xlim([0.0, 1.0])
-            # plt.ylim([0.0, 1.05])
-            plt.xlabel('False Positive Rate')
-            plt.ylabel('True Positive Rate')
-            plt.title('Receiver Operating Characteristic (ROC):\n STATISTICAL PARITY FAIRNESS')
-            plt.legend(loc="lower right")
-            plt.show()
         
         print(f"\nROC AUC Score (Macro-Averaged): {roc_auc_macro:.5f}")
         print(f"ROC AUC Score (Micro-Averaged): {roc_auc_micro:.5f}")
@@ -796,27 +567,11 @@ if __name__ == "__main__":
         plt.title('Precision-Recall Curve | STATISTICAL PARITY FAIRNESS')
         plt.show()
         
-        # disp.ax_.set_title('Precision-Recall curve')
-        # plt.show()
+        actual_male_counts = np.bincount(actual_graduate_male_bin)
+        predicted_male_counts = np.bincount(predicted_graduate_male_bin)
         
-        
-        # # Ensure arrays are of integer type
-        # actual_graduate_male = actual_graduate_male.astype(int)
-        # predicted_graduate_male = predicted_graduate_male.astype(int)
-        # actual_graduate_female = actual_graduate_female.astype(int)
-        # predicted_graduate_female = predicted_graduate_female.astype(int)
-
-        # actual_male_counts = np.bincount(actual_graduate_male)
-        # predicted_male_counts = np.bincount(predicted_graduate_male)
-        
-        # actual_female_counts = np.bincount(actual_graduate_female)
-        # predicted_female_counts = np.bincount(predicted_graduate_female)
-        
-        actual_male_counts = np.bincount(actual_graduate_male_1hot)
-        predicted_male_counts = np.bincount(predicted_graduate_male_1hot)
-        
-        actual_female_counts = np.bincount(actual_graduate_female_1hot)
-        predicted_female_counts = np.bincount(predicted_graduate_female_1hot)
+        actual_female_counts = np.bincount(actual_graduate_female_bin)
+        predicted_female_counts = np.bincount(predicted_graduate_female_bin)
         
         chi_square_male = chisquare(f_obs=actual_male_counts, f_exp=predicted_male_counts)
         chi_square_female = chisquare(f_obs=actual_female_counts, f_exp=predicted_female_counts)
