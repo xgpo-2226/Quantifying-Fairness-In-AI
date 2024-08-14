@@ -19,7 +19,6 @@ from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import classification_report, hamming_loss, auc # in-built AI analysis metrics
 from sklearn.preprocessing import MultiLabelBinarizer, label_binarize # to binarise the labels/output of the model
-# from sklearn.metrics import plot_precision_recall_curve
 from scipy.stats import chisquare, chi2_contingency
 from sklearn.utils import resample # to resample protected attributes appropriately
 import matplotlib.pyplot as plt  # for graph plotting

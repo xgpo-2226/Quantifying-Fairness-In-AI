@@ -18,8 +18,7 @@ from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import classification_report, hamming_loss, auc # in-built AI analysis metrics
 from sklearn.preprocessing import MultiLabelBinarizer, label_binarize # to binarise the labels/output of the model
-# from sklearn.metrics import plot_precision_recall_curve
-from scipy.stats import chisquare
+from scipy.stats import chisquare, chi2_contingency
 from sklearn.utils import resample # to resample protected attributes appropriately
 import matplotlib.pyplot as plt  # for graph plotting
 from scipy.stats import wasserstein_distance  # to calculate Wasserstein distance (measure difference between distributions)
@@ -96,12 +95,6 @@ def equalised_odds(predictions, labels, protected_attribute, alpha=0.5):
     # Ensure group_0_labels is a boolean tensor for logical operations
     group_1_labels_bool = group_1_labels.bool()
     
-    # False Positive Rate (FPR) for group 1
-    # group_1_fpr = (group_1_predictions & ~group_1_labels).sum().item() / (~group_1_labels).sum().item()
-    # group_1_fpr = (group_1_predictions & torch.logical_not(group_1_labels)).sum().item() / torch.logical_not(group_1_labels).sum().item()
-    # group_1_fpr = (group_1_predictions & torch.logical_not(group_1_labels_bool)).sum().item() / \
-    #               torch.logical_not(group_1_labels_bool).sum().item()
-    
     group_1_tpr = torch.logical_and(group_1_predictions, group_1_labels_bool).sum().item() / group_1_labels_bool.sum().item()
     group_1_fpr = torch.logical_and(group_1_predictions, torch.logical_not(group_1_labels_bool)).sum().item() / torch.logical_not(group_1_labels_bool).sum().item()
            
@@ -120,7 +113,7 @@ if __name__ == "__main__":
 
     # Hyperparameters
     batch_size = 128
-    num_workers = 2 # 16 is the maximum no. CPUs that on current laptop
+    num_workers = 0 # 16 is the maximum no. CPUs that on current laptop
     learning_rate = 1e-3
     hidden_layer_size = 256
     hidden_layers = 6
@@ -157,15 +150,11 @@ if __name__ == "__main__":
     print("Label distribution in training set:")
     print(pd.DataFrame(labels).sum())
 
-    # # Balance the dataset using SMOTE
-    smote = SMOTE()
-    features, labels = smote.fit_resample(features, labels)
-    # adasyn = ADASYN()
-    # features, labels = adasyn.fit_resample(features, labels)
+    # # Balance the dataset using ADASYN
+    adasyn = ADASYN()
+    features, labels = adasyn.fit_resample(features, labels)
 
     # Resample protected attributes accordingly
-    # protected_attr_resampled = np.repeat(protected_attr, labels.shape[0] // len(protected_attr), axis=0)
-    # protected_attr_resampled = protected_attr
     protected_attr_resampled = resample(protected_attr, n_samples=labels.shape[0], random_state=42)
 
     # Normalize features
@@ -221,7 +210,6 @@ if __name__ == "__main__":
     class_weights = 1.0 / class_counts
     weights_tensor = torch.tensor(class_weights, dtype=torch.float32).to(device)
 
-    # loss_function = nn.CrossEntropyLoss()
     loss_function = nn.CrossEntropyLoss(weight=weights_tensor)
 
     # Learning rate scheduler to adjust learning rate during training
@@ -284,9 +272,6 @@ if __name__ == "__main__":
         model.eval()  # Set the model to evaluation mode
         correct = 0
         total = 0
-        # fairness_correct = 0
-        # protected_attribute_positive = 0
-        # protected_attribute_negative = 0
         
         testing_times = []
         all_predictions = []
@@ -339,17 +324,7 @@ if __name__ == "__main__":
                 all_predictions.append(predicted_np)
                 all_labels.append(labels_np)
                 all_protected_attrs.append(protected_attr_batch.cpu().numpy())
-                all_features.append(features_np)
-
-
-                # # Evaluate fairness
-                # fairness_correct += ((predictions == labels) & (protected_attr_batch == 1)).sum().item()
-                # protected_attribute_positive += (protected_attr_batch == 1).sum().item()
-                # protected_attribute_negative += (protected_attr_batch == 0).sum().item()
-
-                # if equalised_odds_value > LargestEOVal:
-                #     LargestEOVal = equalised_odds_value
-                #     print(f"Highest Equalised Odds rate: {equalised_odds_value:.4f}")        
+                all_features.append(features_np)      
                 
                 # Timing the test batch
                 elapsed_time = time.time() - start_test_batch_time
@@ -387,10 +362,6 @@ if __name__ == "__main__":
                 
         accuracy = 100 * correct / total # (TP+TN)/(TP+TN+FP+FN)
         print(f'Accuracy of the network on the test set: {accuracy:.4f}%')
-    
-        # Calculate accuracy metrics (equalsied odds)
-        # equalised_odds_positive = fairness_correct / protected_attribute_positive
-        # equalised_odds_negative = (correct - fairness_correct) / protected_attribute_negative
 
     
         end_time = time.time()
@@ -421,10 +392,6 @@ if __name__ == "__main__":
         parity_intx = IXP.intersectional_statistical_parity(model(torch.from_numpy(all_features_np)), protected_attr_tensor[test_indices])
         print(f"\nIntersection Statistical Parity: {parity_intx:.5f}")  
 
-        
-        # all_predictions_np = np.array(all_predictions)
-        # all_labels_np = np.array(all_labels)
-        # all_protected_attrs_np = np.array(all_protected_attrs)
         f1 = f1_score(all_labels_np, all_predictions_np, average='macro')
         print(f'F1-Score: {f1:.5f}')
         

@@ -7,7 +7,7 @@ from torch.nn import functional as F
 from torch.utils.data import DataLoader, TensorDataset, Subset
 from ucimlrepo import fetch_ucirepo  # Module for fetching datasets from UCI ML repository
 from typing import Callable
-# import logging  # Standard Python logging module while program runs
+import logging  # Standard Python logging module while program runs
 import time
 import pandas as pd
 import numpy as np
