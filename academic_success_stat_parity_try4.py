@@ -518,7 +518,7 @@ if __name__ == "__main__":
         plt.xlabel('False Positive Rate')
         plt.ylabel('True Positive Rate')
         plt.title('Receiver Operating Characteristic (ROC):\n STATISTICAL PARITY FAIRNESS')
-        plt.legend(loc="lower right")
+        plt.legend(loc="best")
         plt.show()
 
         

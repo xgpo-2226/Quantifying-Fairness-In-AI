@@ -7,7 +7,7 @@ from torch.nn import functional as F
 from torch.utils.data import DataLoader, TensorDataset, Subset
 from ucimlrepo import fetch_ucirepo  # Module for fetching datasets from UCI ML repository
 from typing import Callable
-# import logging  # Standard Python logging module while program runs
+import logging  # Standard Python logging module while program runs
 import time
 import pandas as pd
 import numpy as np
@@ -489,22 +489,42 @@ if __name__ == "__main__":
         # Binarize the labels for one-vs-rest classification
         y_test_binarized = label_binarize(all_labels_np, classes=[0, 1, 2])
         
+        
+        n_classes = all_labels_np.shape[1]
+
+        # Initialize TPR and FPR arrays
+        fpr = dict()
+        tpr = dict()
+        roc_auc = dict()
+        
+        # Compute ROC curve and ROC area for each class
+        for i in range(n_classes):
+            fpr[i], tpr[i], _ = roc_curve(all_labels_np[:,i], all_predictions_np[:,i])
+            roc_auc[i] = auc(fpr[i], tpr[i])
+        
+        
+        from itertools import cycle
+        # Plotting
+        plt.figure()
+        colors = cycle(['aqua', 'darkorange', 'cornflowerblue'])
+        for i, color in zip(range(n_classes), colors):
+            plt.plot(fpr[i], tpr[i], color=color, lw=2,
+                     label='ROC curve of class {0} (area = {1:0.2f})'
+                           ''.format(i, roc_auc[i]))
+        
+        plt.plot([0, 1], [0, 1], 'k--', lw=2)
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.05])
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title('Receiver Operating Characteristic (ROC):\n INTERSECTIONAL FAIRNESS')
+        plt.legend(loc="best")
+        plt.show()
+        
+        
         # Compute the ROC AUC score using "macro" or "micro" averaging
         roc_auc_macro = roc_auc_score(y_test_binarized, all_predictions_np, average='macro')
         roc_auc_micro = roc_auc_score(y_test_binarized, all_predictions_np, average='micro')
-        
-        for i in range(len(fpr)):
-            plt.figure()
-            plt.plot(fpr[i], tpr[i], color='blue', lw=2, label='ROC curve (area = %0.2f)' % roc_auc_macro)
-            plt.plot([0, 1], [0, 1], color='gray', lw=2, linestyle='--')
-            plt.xlim([0.0, 1.0])
-            plt.ylim([0.0, 1.05])
-            plt.xlabel('False Positive Rate')
-            plt.ylabel('True Positive Rate')
-            plt.title('Receiver Operating Characteristic (ROC):\n INTERSECTIONAL FAIRNESS')
-            plt.legend(loc="lower right")
-            plt.show()
-        
         print(f"\nROC AUC Score (Macro-Averaged): {roc_auc_macro:.5f}")
         print(f"ROC AUC Score (Micro-Averaged): {roc_auc_micro:.5f}")
         
@@ -550,7 +570,7 @@ if __name__ == "__main__":
         print("\n\nMeasuring FAIRNESS with CHI-Square")
         
         # Create a contingency table
-        contingency_table = np.array([predicted_group_counts]).T
+        contingency_table = np.array([predicted_group_counts]) # each nested array is a count distribution for one group
         
         # Perform the Chi-Square test for homogeneity
         chi2_stat, p_value, dof, expected = chi2_contingency(contingency_table)
