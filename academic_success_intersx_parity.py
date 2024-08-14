@@ -398,6 +398,7 @@ if __name__ == "__main__":
         plt.show()
         
         # Get indices where the elements in all_protected_attrs are equal to 1
+        
         indices_male = np.where(all_protected_attrs_np == 1)[0]
         # Get indices where the elements in all_protected_attrs are equal to 0
         indices_female = np.where(all_protected_attrs_np == 0)[0]
@@ -408,29 +409,6 @@ if __name__ == "__main__":
         actual_graduate_female = all_labels_np[indices_female, 2]
         predicted_graduate_female = all_predictions_np[indices_female, 2]
         
-        # plt.figure(figsize=(10, 6))        
-        
-        # plt.scatter(range(len(actual_graduate_male)), actual_graduate_male, color='blue', label='Actual Male')
-        # plt.scatter(range(len(predicted_graduate_male)), predicted_graduate_male, color='red', label='Predicted Male', marker='x')
-        # plt.scatter(range(len(actual_graduate_female)), actual_graduate_female, color='green', label='Actual Female')
-        # plt.scatter(range(len(predicted_graduate_female)), predicted_graduate_female, color='orange', label='Predicted Female', marker='x')
-        # plt.xlabel('Samples')
-        # plt.ylabel('Graduate')
-        # plt.legend()
-        # plt.show()
-        
-        # # Compute residuals
-        # residuals_male = actual_graduate_male - predicted_graduate_male
-        # residuals_female = actual_graduate_female - predicted_graduate_female
-        
-        # # Plot residuals
-        # plt.figure(figsize=(10, 6))
-        # plt.hist(residuals_male, bins=20, alpha=0.5, label='Residuals Male', color='red')
-        # plt.hist(residuals_female, bins=20, alpha=0.5, label='Residuals Female', color='yellow')
-        # plt.xlabel('Residuals')
-        # plt.ylabel('Frequency')
-        # plt.legend()
-        # plt.show()
         
         all_labels_np = all_labels_np.astype(int)
         all_predictions_np = all_predictions_np.astype(int)
@@ -440,8 +418,6 @@ if __name__ == "__main__":
         all_predictions_list = [list(prediction) for prediction in all_predictions_np]
         
         mlb = MultiLabelBinarizer()
-        # all_labels_bin = mlb.fit_transform(all_labels)
-        # all_predictions_bin = mlb.transform(all_predictions)
         
         all_labels_bin = mlb.fit_transform(all_labels_np)
         all_predictions_bin = mlb.transform(all_predictions_np)
@@ -549,11 +525,6 @@ if __name__ == "__main__":
         # wasserstein_dist = wasserstein_distance(actual_graduate_male, predicted_graduate_male)
         wasserstein_dist = wasserstein_distance(predicted_graduate_female, predicted_graduate_male)
         print(f'\nWasserstein Distance: {wasserstein_dist:.3f}')
-        
-        # Save predictions to Excel
-        df_predictions = pd.DataFrame(all_predictions_np, columns=['Dropout', 'Enrolled', 'Graduate'])
-        df_predictions.to_excel('predictions.xlsx', index=False)
-        print('Predictions saved to predictions.xlsx')
     
     except Exception as e:
         logging.error(f'Error during testing: {e}')
