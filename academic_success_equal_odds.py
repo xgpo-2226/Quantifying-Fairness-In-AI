@@ -194,8 +194,8 @@ if __name__ == "__main__":
                 break    
 
     # DataLoaders
-    train_loader = DataLoader(train_dataset, shuffle=True, batch_size=batch_size, num_workers=num_workers, pin_memory=True)
-    test_loader = DataLoader(test_dataset, shuffle=False, batch_size=batch_size, num_workers=num_workers, pin_memory=True)
+    train_loader = DataLoader(train_dataset, shuffle=True, batch_size=batch_size, num_workers=num_workers, pin_memory=False)
+    test_loader = DataLoader(test_dataset, shuffle=False, batch_size=batch_size, num_workers=num_workers, pin_memory=False)
 
     # Instantiate the MLP model
     input_size = features.shape[1]  # Number of input features
@@ -398,7 +398,6 @@ if __name__ == "__main__":
         # Epoch Runtime/Performance Time Plot
         plt.figure(figsize=(10, 6))
         plt.plot(range(1, num_epochs + 1), training_times, label='Training Time')
-        # plt.plot(range(1, num_epochs + 1), testing_times, label='Testing Time')
         plt.xlabel('Epoch')
         plt.ylabel('Time (seconds)')
         plt.title('Epoch Runtime/Performance Time:\n EQUALISED ODDS FAIRNESS')
@@ -406,15 +405,21 @@ if __name__ == "__main__":
         plt.show()
         
         # Get indices where the elements in all_protected_attrs are equal to 1
-        indices_male = np.where(all_protected_attrs_np == 1)[0]
+        indices_male = np.where(all_protected_attrs_np == 1)[0] # to just get the index, not the data type
         # Get indices where the elements in all_protected_attrs are equal to 0
         indices_female = np.where(all_protected_attrs_np == 0)[0]
         
         # Index into all_labels_np using the indices to get the corresponding rows
-        actual_graduate_male = all_labels_np[indices_male, 2]
-        predicted_graduate_male = all_predictions_np[indices_male, 2]
-        actual_graduate_female = all_labels_np[indices_female, 2]
-        predicted_graduate_female = all_predictions_np[indices_female, 2]
+        actual_graduate_male = all_labels_np[indices_male]
+        predicted_graduate_male = all_predictions_np[indices_male]
+        actual_graduate_female = all_labels_np[indices_female]
+        predicted_graduate_female = all_predictions_np[indices_female]
+        
+        # finds the index of the column in each row of the '1' value
+        actual_graduate_male_bin = np.argmax(actual_graduate_male, axis=1)
+        predicted_graduate_male_bin = np.argmax(predicted_graduate_male, axis=1)
+        actual_graduate_female_bin = np.argmax(actual_graduate_female, axis=1)
+        predicted_graduate_female_bin = np.argmax(predicted_graduate_female, axis=1) 
         
         all_labels_np = all_labels_np.astype(int)
         all_predictions_np = all_predictions_np.astype(int)
@@ -423,13 +428,12 @@ if __name__ == "__main__":
         all_labels_list = [list(label) for label in all_labels_np]
         all_predictions_list = [list(prediction) for prediction in all_predictions_np]
         
-        mlb = MultiLabelBinarizer()
-        all_labels_bin = mlb.fit_transform(all_labels_np)
-        all_predictions_bin = mlb.transform(all_predictions_np)
+        all_labels_bin = np.argmax(all_labels_np, axis=1)
+        all_predictions_bin = np.argmax(all_predictions_np, axis=1)
         
         # Compute the classification report
         print("\n\nClassification Report:")
-        print(classification_report(all_labels_bin, all_predictions_bin, target_names=mlb.classes_.astype(str)))
+        print(classification_report(all_labels_bin, all_predictions_bin))
         
         # Compute Hamming loss
         print("\n\nHamming Loss:", hamming_loss(all_labels_bin, all_predictions_bin))
@@ -476,22 +480,40 @@ if __name__ == "__main__":
         # Binarize the labels for one-vs-rest classification
         y_test_binarized = label_binarize(all_labels_np, classes=[0, 1, 2])
         
+        n_classes = all_labels_np.shape[1]
+
+        # Initialize TPR and FPR arrays
+        fpr = dict()
+        tpr = dict()
+        roc_auc = dict()
+        
+        # Compute ROC curve and ROC area for each class
+        for i in range(n_classes):
+            fpr[i], tpr[i], _ = roc_curve(all_labels_np[:,i], all_predictions_np[:,i])
+            roc_auc[i] = auc(fpr[i], tpr[i])
+        
+        
+        from itertools import cycle
+        # Plotting
+        plt.figure()
+        colors = cycle(['aqua', 'darkorange', 'cornflowerblue'])
+        for i, color in zip(range(n_classes), colors):
+            plt.plot(fpr[i], tpr[i], color=color, lw=2,
+                     label='ROC curve of class {0} (area = {1:0.2f})'
+                           ''.format(i, roc_auc[i]))
+        
+        plt.plot([0, 1], [0, 1], 'k--', lw=2)
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.05])
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title('Receiver Operating Characteristic (ROC):\n STATISTICAL PARITY FAIRNESS')
+        plt.legend(loc="best")
+        plt.show()
+        
         # Compute the ROC AUC score using "macro" or "micro" averaging
         roc_auc_macro = roc_auc_score(y_test_binarized, all_predictions_np, average='macro')
         roc_auc_micro = roc_auc_score(y_test_binarized, all_predictions_np, average='micro')
-        
-        for i in range(len(fpr)):
-            plt.figure()
-            plt.plot(fpr[i], tpr[i], color='blue', lw=2, label='ROC curve (area = %0.2f)' % roc_auc_macro)
-            plt.plot([0, 1], [0, 1], color='gray', lw=2, linestyle='--')
-            plt.xlim([0.0, 1.0])
-            plt.ylim([0.0, 1.05])
-            plt.xlabel('False Positive Rate')
-            plt.ylabel('True Positive Rate')
-            plt.title('Receiver Operating Characteristic (ROC):\n EQUALISED ODDS FAIRNESS')
-            plt.legend(loc="lower right")
-            plt.show()
-        
         print(f"\nROC AUC Score (Macro-Averaged): {roc_auc_macro:.5f}")
         print(f"ROC AUC Score (Micro-Averaged): {roc_auc_micro:.5f}")
         
@@ -507,34 +529,31 @@ if __name__ == "__main__":
         plt.title('Precision-Recall Curve | EQUALISED ODDS FAIRNESS')
         plt.show()
         
-        # Ensure arrays are of integer type
-        actual_graduate_male = actual_graduate_male.astype(int)
-        predicted_graduate_male = predicted_graduate_male.astype(int)
-        actual_graduate_female = actual_graduate_female.astype(int)
-        predicted_graduate_female = predicted_graduate_female.astype(int)
-
-        actual_male_counts = np.bincount(actual_graduate_male)
-        predicted_male_counts = np.bincount(predicted_graduate_male)
+        actual_male_counts = np.bincount(actual_graduate_male_bin)
+        predicted_male_counts = np.bincount(predicted_graduate_male_bin)
         
-        actual_female_counts = np.bincount(actual_graduate_female)
-        predicted_female_counts = np.bincount(predicted_graduate_female)
+        actual_female_counts = np.bincount(actual_graduate_female_bin)
+        predicted_female_counts = np.bincount(predicted_graduate_female_bin)
         
         chi_square_male = chisquare(f_obs=actual_male_counts, f_exp=predicted_male_counts)
         chi_square_female = chisquare(f_obs=actual_female_counts, f_exp=predicted_female_counts)
         
-        print(f"\nChi-Square Test for Male Group: {chi_square_male}") # statistic = the chi squared distance
+        print("\nMeasuring ACCURACY with CHI-Square")
+        print(f"Chi-Square Test for Male Group: {chi_square_male}") # statistic = the chi squared distance
         print(f"Chi-Square Test for Female Group: {chi_square_female}") # pvalue < 0.05 = statistically sig difference
-
         
-        # Compute Wasserstein distance (similarity metric between two probability distributions)
-        wasserstein_dist = wasserstein_distance(actual_graduate_male, predicted_graduate_male)
-        print(f'\nWasserstein Distance: {wasserstein_dist:.3f}')
+        print("\nMeasuring FAIRNESS with CHI-Square")
+        # print(f"Chi-Square Test Across All Groups: {chi_square_all}")
         
+        # Create a contingency table
+        contingency_table = np.array([predicted_male_counts, predicted_female_counts])
         
-        # Save predictions to Excel
-        df_predictions = pd.DataFrame(all_predictions_np, columns=['Dropout', 'Enrolled', 'Graduate'])
-        df_predictions.to_excel('predictions.xlsx', index=False)
-        print('Predictions saved to predictions.xlsx')
+        # Perform the Chi-Square test for homogeneity
+        chi2_stat, p_value, dof, expected = chi2_contingency(contingency_table)
+        
+        # Output the results
+        print(f"Chi-Sqaure Statistic Across All Groups: {chi2_stat:.5f}")
+        print(f"P-Value Across All Groups: {p_value:.5f}")
     
     except Exception as e:
         logging.error(f'Error during testing: {e}')

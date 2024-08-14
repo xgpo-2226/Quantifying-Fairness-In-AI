@@ -171,8 +171,8 @@ if __name__ == "__main__":
                 break    
 
     # DataLoaders
-    train_loader = DataLoader(train_dataset, shuffle=True, batch_size=batch_size, num_workers=num_workers, pin_memory=True)
-    test_loader = DataLoader(test_dataset, shuffle=False, batch_size=batch_size, num_workers=num_workers, pin_memory=True)
+    train_loader = DataLoader(train_dataset, shuffle=True, batch_size=batch_size, num_workers=num_workers, pin_memory=False)
+    test_loader = DataLoader(test_dataset, shuffle=False, batch_size=batch_size, num_workers=num_workers, pin_memory=False)
 
     # Instantiate the MLP model
     input_size = features.shape[1]  # Number of input features

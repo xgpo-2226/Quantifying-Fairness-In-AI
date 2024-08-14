@@ -180,8 +180,8 @@ if __name__ == "__main__":
     train_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, test_size])
 
     # DataLoaders
-    train_loader = DataLoader(train_dataset, shuffle=True, batch_size=batch_size, num_workers=num_workers, pin_memory=True)
-    test_loader = DataLoader(test_dataset, shuffle=False, batch_size=batch_size, num_workers=num_workers, pin_memory=True)
+    train_loader = DataLoader(train_dataset, shuffle=True, batch_size=batch_size, num_workers=num_workers, pin_memory=False)
+    test_loader = DataLoader(test_dataset, shuffle=False, batch_size=batch_size, num_workers=num_workers, pin_memory=False)
 
     # Instantiate the MLP model
     input_size = features.shape[1]  # Number of input features
@@ -372,11 +372,11 @@ if __name__ == "__main__":
         
         print(f'\nAccuracy Score is: {accuracy_score(all_labels_np,all_predictions_np):.4f}')
          
-        parity = SP.statistical_parity(model(torch.from_numpy(all_features_np)), torch.from_numpy(all_protected_attrs_np))
+        parity = SP.statistical_parity(model(torch.from_numpy(all_features_np)), torch.from_numpy(all_protected_attrs_np[:,0]))
         print(f"\nStatistical Parity: {parity:.5f}") 
         
         # equalised_odds_value = EQO.equalised_odds(torch.from_numpy(all_predictions_np), torch.from_numpy(all_labels_np), torch.from_numpy(all_protected_attrs_np))
-        equalised_odds_value = EQO.equalised_odds(model(torch.from_numpy(all_features_np)), torch.from_numpy(all_labels_np), torch.from_numpy(all_protected_attrs_np))
+        equalised_odds_value = EQO.equalised_odds(model(torch.from_numpy(all_features_np)), torch.from_numpy(all_labels_np), torch.from_numpy(all_protected_attrs_np[:,0]))
         print(f"\nEqualised Odds Rate: {equalised_odds_value:.5f}") 
         
         # parity_intx = intersectional_statistical_parity(torch.from_numpy(all_predictions_np), torch.from_numpy(all_protected_attrs_np))
