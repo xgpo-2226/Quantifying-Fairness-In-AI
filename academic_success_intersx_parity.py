@@ -434,14 +434,12 @@ if __name__ == "__main__":
         all_labels_list = [list(label) for label in all_labels_np]
         all_predictions_list = [list(prediction) for prediction in all_predictions_np]
         
-        mlb = MultiLabelBinarizer()
-        
-        all_labels_bin = mlb.fit_transform(all_labels_np)
-        all_predictions_bin = mlb.transform(all_predictions_np)
+        all_labels_bin = np.argmax(all_labels_np, axis=1)
+        all_predictions_bin = np.argmax(all_predictions_np, axis=1)
         
         # Compute the classification report
         print("\n\nClassification Report:")
-        print(classification_report(all_labels_bin, all_predictions_bin, target_names=mlb.classes_.astype(str)))
+        print(classification_report(all_labels_bin, all_predictions_bin))
         
         # Compute Hamming loss
         print("\n\nHamming Loss:", hamming_loss(all_labels_bin, all_predictions_bin))
